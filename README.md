@@ -1,12 +1,15 @@
-# 現物貴金属ポートフォリオ
+# Metal Portfolio
 
-ローカルで動作するシンプルな現物貴金属管理アプリです。
+A simple local web app for managing a physical metal portfolio, including gold, silver, and platinum.
 
-セットアップ:
+## Setup
 
 ```bash
 npm install
 npm run dev
 ```
 
-このリポジトリはローカルでの使用向けです。機密情報を含むファイルは `.gitignore` に追加してください。
+## Notes
+
+- This project is intended for local use.
+- Add any sensitive files to `.gitignore`.
