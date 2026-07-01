@@ -30,6 +30,7 @@ export type MetalPrices = {
   silver: number;
   platinum: number;
   updatedAt: string;
+  source?: 'manual' | 'gold-api';
 };
 
 export type PortfolioHistoryEntry = {

@@ -109,6 +109,8 @@ export default function HomePage() {
   const [form, setForm] = useState<ItemFormState>(createEmptyForm);
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
   const [importError, setImportError] = useState<string | null>(null);
+  const [priceFetchError, setPriceFetchError] = useState<string | null>(null);
+  const [isFetchingPrices, setIsFetchingPrices] = useState(false);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [activeTab, setActiveTab] = useState<'portfolio' | 'history' | 'items' | 'settings'>('history');
   const [timeRange, setTimeRange] = useState<'month' | 'year'>('month');
@@ -384,6 +386,45 @@ export default function HomePage() {
     link.download = filename;
     link.click();
     URL.revokeObjectURL(url);
+  };
+
+  const fetchPricesFromApi = async () => {
+    setPriceFetchError(null);
+    setIsFetchingPrices(true);
+
+    try {
+      const response = await fetch('/api/metal-prices');
+      if (!response.ok) {
+        throw new Error(`API request failed: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (
+        typeof data.gold !== 'number' ||
+        typeof data.silver !== 'number' ||
+        typeof data.platinum !== 'number' ||
+        typeof data.updatedAt !== 'string'
+      ) {
+        throw new Error('Invalid API response');
+      }
+
+      const nextPrices: MetalPrices = {
+        gold: data.gold,
+        silver: data.silver,
+        platinum: data.platinum,
+        updatedAt: data.updatedAt,
+        source: 'gold-api',
+      };
+
+      setPrices(nextPrices);
+      if (typeof window !== 'undefined') {
+        safeSave(STORAGE_KEYS.prices, nextPrices);
+      }
+    } catch (error) {
+      setPriceFetchError('価格取得に失敗しました。手動入力価格を引き続き使用します。');
+    } finally {
+      setIsFetchingPrices(false);
+    }
   };
 
   const exportItemsCsv = () => {
@@ -726,16 +767,30 @@ export default function HomePage() {
 
         {activeTab === 'settings' && (
           <section className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
-            <div className="mb-4 flex items-center justify-between gap-3">
+            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold">設定</h2>
                 <p className="text-sm text-slate-500">価格・履歴管理の基本設定です。</p>
               </div>
-              <button className="rounded-2xl bg-slate-800 px-4 py-2 text-sm font-semibold text-white" onClick={() => {
-                const next = { ...prices, updatedAt: new Date().toISOString() };
-                setPrices(next);
-                try { safeSave(STORAGE_KEYS.prices, next); } catch {}
-              }}>価格を保存</button>
+              <div className="flex flex-wrap gap-2">
+                <button
+                  className="rounded-2xl bg-slate-800 px-4 py-2 text-sm font-semibold text-white"
+                  onClick={() => {
+                    const next = { ...prices, updatedAt: new Date().toISOString() };
+                    setPrices(next);
+                    try { safeSave(STORAGE_KEYS.prices, next); } catch {}
+                  }}
+                >
+                  価格を保存
+                </button>
+                <button
+                  className="rounded-2xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white"
+                  onClick={fetchPricesFromApi}
+                  disabled={isFetchingPrices}
+                >
+                  {isFetchingPrices ? '価格を取得中...' : 'APIから価格取得'}
+                </button>
+              </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
               {(['gold', 'silver', 'platinum'] as MetalType[]).map((type) => (
@@ -751,6 +806,14 @@ export default function HomePage() {
                   />
                 </label>
               ))}
+            </div>
+            {priceFetchError ? (
+              <div className="rounded-3xl bg-rose-50 p-4 text-sm text-rose-700">
+                {priceFetchError}
+              </div>
+            ) : null}
+            <div className="mt-4 rounded-3xl bg-slate-50 p-4 text-sm text-slate-600">
+              APIで取得する価格は国際スポット価格をもとにした参考価格です。国内の店頭買取価格、手数料、査定結果とは異なる場合があります。
             </div>
             <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <p className="text-sm text-slate-500">最終更新: {prices.updatedAt ? new Date(prices.updatedAt).toLocaleString('ja-JP') : '未設定'}</p>
