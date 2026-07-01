@@ -433,6 +433,13 @@ export default function HomePage() {
     })).filter((item) => item.value > 0);
   }, [totals.byMetal, totals.totalEstimated]);
 
+  const generateId = () => {
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+    return `id-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+  };
+
   const hasHistoryChanged = (entry: PortfolioHistoryEntry | null) => {
     if (!entry) return true;
     return (
@@ -454,7 +461,7 @@ export default function HomePage() {
     }
 
     const next: PortfolioHistoryEntry = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       recordedAt: new Date().toISOString(),
       goldValue: totals.byMetal.gold,
       silverValue: totals.byMetal.silver,
@@ -489,7 +496,7 @@ export default function HomePage() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     const payload: MetalItem = {
-      id: editingId || crypto.randomUUID(),
+      id: editingId || generateId(),
       name: form.name,
       metalType: form.metalType,
       purityType: form.purityType,

@@ -6,8 +6,21 @@
   color-scheme: light;
 }
 
+html {
+  min-height: 100%;
+}
+
 body {
-  @apply min-h-screen bg-slate-50 text-slate-800;
+  @apply min-h-screen bg-slate-50 text-slate-800 overflow-x-hidden;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+main {
+  @apply min-h-screen;
+}
+
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
 }
 
 input[type='number']::-webkit-outer-spin-button,
