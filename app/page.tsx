@@ -117,6 +117,8 @@ export default function HomePage() {
   const [activeTab, setActiveTab] = useState<'portfolio' | 'history' | 'items' | 'settings'>('history');
   const [timeRange, setTimeRange] = useState<'month' | 'year'>('month');
   const [isHydrated, setIsHydrated] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [showResetHistoryConfirm, setShowResetHistoryConfirm] = useState(false);
 
   const STORAGE_KEYS = {
     items: 'metal-portfolio-items',
@@ -257,43 +259,11 @@ export default function HomePage() {
   useEffect(() => {
     if (!isHydrated || typeof window === 'undefined') return;
 
-    const fetchAndSavePrices = async () => {
-      setPriceFetchError(null);
-      setIsFetchingPrices(true);
-      try {
-        const response = await fetch('/api/metal-prices');
-        if (!response.ok) {
-          throw new Error(`API request failed: ${response.status}`);
-        }
-
-        const data = await response.json();
-        if (
-          typeof data.gold !== 'number' ||
-          typeof data.silver !== 'number' ||
-          typeof data.platinum !== 'number' ||
-          typeof data.updatedAt !== 'string'
-        ) {
-          throw new Error('Invalid API response');
-        }
-
-        const nextPrices: MetalPrices = {
-          gold: data.gold,
-          silver: data.silver,
-          platinum: data.platinum,
-          updatedAt: data.updatedAt,
-          source: 'gold-api',
-        };
-
-        setPrices(nextPrices);
-        safeSave(STORAGE_KEYS.prices, nextPrices);
-      } catch (error) {
-        setPriceFetchError('価格取得に失敗しました。前回保存された価格を使用しています。');
-      } finally {
-        setIsFetchingPrices(false);
-      }
-    };
-
-    fetchAndSavePrices();
+    if (navigator.onLine) {
+      fetchPricesFromApi();
+    } else {
+      setPriceFetchError('オフラインです。前回保存された価格を使用しています。');
+    }
   }, [isHydrated]);
 
   const totals = useMemo(() => {
@@ -408,6 +378,45 @@ export default function HomePage() {
     }
   };
 
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    setIsOnline(navigator.onLine);
+
+    const handleOnline = () => {
+      setIsOnline(true);
+      if (isHydrated) {
+        fetchPricesFromApi();
+      }
+    };
+
+    const handleOffline = () => {
+      setIsOnline(false);
+      setPriceFetchError('オフラインです。前回保存された価格を使用しています。');
+    };
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, [isHydrated]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (!('serviceWorker' in navigator) || process.env.NODE_ENV !== 'production') return;
+
+    navigator.serviceWorker.register('/sw.js')
+      .then(() => {
+        console.log('Service Worker registered');
+      })
+      .catch((error) => {
+        console.error('Service Worker registration failed', error);
+      });
+  }, []);
+
   const openNew = () => {
     setEditingId(null);
     setForm(createEmptyForm());
@@ -477,6 +486,13 @@ export default function HomePage() {
       return nextArr;
     });
     setHistorySaveMessage('最新の評価額を履歴に保存しました。');
+  };
+
+  const handleResetHistory = () => {
+    setPortfolioHistory([]);
+    safeSave(STORAGE_KEYS.history, []);
+    setShowResetHistoryConfirm(false);
+    setHistorySaveMessage('評価額履歴をリセットしました。');
   };
 
   const openEdit = (item: MetalItem) => {
@@ -549,6 +565,11 @@ export default function HomePage() {
         </header>
 
         <div className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-200">
+          {isOnline ? null : (
+            <div className="mb-4 rounded-2xl bg-amber-50 border border-amber-200 p-4 text-sm text-amber-800">
+              オフラインです。前回保存された価格と保有データを表示しています。
+            </div>
+          )}
           <div className="mb-4">
             <div>
               <h2 className="text-lg font-semibold">メニュー</h2>
@@ -582,6 +603,7 @@ export default function HomePage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 <button className="rounded-2xl bg-amber-600 px-4 py-2 text-sm font-semibold text-white" onClick={handleSaveCurrentHistory}>今の評価額を保存</button>
+                <button className="rounded-2xl border border-rose-300 bg-white px-4 py-2 text-sm font-semibold text-rose-700" onClick={() => setShowResetHistoryConfirm(true)}>履歴をリセット</button>
               </div>
             </div>
             <div className="grid gap-3 sm:grid-cols-3">
@@ -617,7 +639,7 @@ export default function HomePage() {
             </div>
             <div className="mt-4 rounded-3xl bg-white p-4 shadow-inner ring-1 ring-slate-200">
               {chartData.length === 0 ? (
-                <p className="text-sm text-slate-500">まだ評価額履歴がありません。『今の評価額を保存』をタップして記録してください。</p>
+                <p className="text-sm text-slate-500">まだ評価額履歴がありません。「今の評価額を保存」を押すと、推移グラフを作成できます。</p>
               ) : (
                 <div>
                   <div className="grid gap-3 sm:grid-cols-3 mb-3">
@@ -932,6 +954,19 @@ export default function HomePage() {
             <div className="mt-6 flex justify-end gap-3">
               <button className="rounded-lg border border-slate-300 px-4 py-2 text-sm" onClick={() => setDeleteTargetId(null)}>キャンセル</button>
               <button className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white" onClick={handleDelete}>削除</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showResetHistoryConfirm && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-slate-900/50 p-4">
+          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold">履歴のリセット</h3>
+            <p className="mt-2 text-sm text-slate-600">本当に評価額履歴をリセットしますか？この操作は取り消せません。</p>
+            <div className="mt-6 flex justify-end gap-3">
+              <button className="rounded-lg border border-slate-300 px-4 py-2 text-sm" onClick={() => setShowResetHistoryConfirm(false)}>キャンセル</button>
+              <button className="rounded-lg bg-rose-600 px-4 py-2 text-sm font-semibold text-white" onClick={handleResetHistory}>リセットする</button>
             </div>
           </div>
         </div>
