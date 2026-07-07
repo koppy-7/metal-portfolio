@@ -4,6 +4,9 @@
 保有している貴金属の重量や品位を登録すると、現在価格をもとに概算評価額を確認できます。
 
 PWAに対応しているため、スマホのホーム画面に追加してアプリのように使えます。
+## Demo
+
+[Metal Portfolio を開く](https://metal-portfolio-green.vercel.app/)
 
 ## Screenshots例
 
